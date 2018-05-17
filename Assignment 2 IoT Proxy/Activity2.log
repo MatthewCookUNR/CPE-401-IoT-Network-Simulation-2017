@@ -1,0 +1,37 @@
+Server side activity 
+
+Server attempting to send a message from:  ClientTop  to:  ClientTop
+Destination device ID was not found by server 
+
+Device attempting to register to server, input values:
+DeviceID:  ClientTop MAC:  9e:b6:d0:b0:27:af IP:  192.168.0.16 Port:  54330
+Device registered successfully 
+
+Server attempting to send a message from:  ClientTop  to:  ClientTop
+Message added by server to the mailbox successfully 
+
+Server attempting to send a message from:  ClientTop  to:  ClientTop
+Message added by server to the mailbox successfully 
+
+Device attempting to register to server, input values:
+DeviceID:  ClientTop MAC:  9e:b6:d0:b0:27:af IP:  192.168.0.16 Port:  54330
+Device is already registered 
+
+Server attempting to query for info on device ID:  ClientTop
+Server successfully sent info on queried device 
+
+Server attempting to query for info on device ID:  ClientTop2
+Server couldn't find the device being queried 
+
+Server attempting to query for deviceID:  ClientTop  mail
+Server sending mail to client
+Server successfully sent mail, deleting the sent mail from mailbox 
+
+Device attempting to deregister, device ID:  ClientTop  MAC:  9e:b6:d0:b0:27:af
+Device Deregistered, DeviceID:  ClientTop  MAC:  9e:b6:d0:b0:27:af 
+
+Device attempting to deregister, device ID:  ClientTop  MAC:  9e:b6:d0:b0:27:af
+Device failed to deregister 
+
+Connected device:  ClientTop  is leaving network 
+
