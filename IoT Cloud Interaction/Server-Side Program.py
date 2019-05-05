@@ -8,6 +8,7 @@ from threading import Lock
 from threading import Condition
 import dropbox
 
+#Thread handles dropbox notifications and use amongst clients
 class dropboxThread(Thread):
     def __init__(self, accessToken):
         self.client = dropbox.client.DropboxClient(accessToken)
@@ -37,6 +38,7 @@ class dropboxThread(Thread):
             if not newChanges:
                 print('Timeout, restarting poll')               
 
+#Handles operations for each client device
 class clientThread(Thread):
     def __init__(self, number, mySock, address):
         self.sock = mySock
@@ -47,8 +49,8 @@ class clientThread(Thread):
         OPEN = True # initial value is true, meaning more packets can be sent by the client to server
         while OPEN is True: # OPEN remains true until client quits his connection
             data = self.sock.recv(1024) # waits to recv data from client
-            data = bytes.decode(data) # bytes to str
-            data = literal_eval(data) # str to tuple
+            data = bytes.decode(data)
+            data = literal_eval(data)
             if data[0] is 1: # 0 is position of code, code of 1 means register message
                 locks.conditionTable.acquire()
                 print("Lock acquired by " + self.getName())
@@ -119,7 +121,8 @@ class clientThread(Thread):
                 sys.stdout = logFile2 # switches to printing to error log
                 print("malform packet detected from IP: ", self.addr[0])
                 sys.stdout = logFile1 # switches back to printing to activity log
-                
+
+#Handles the different mutex locks used by the proxy                
 class sharedDataLocks():
     def __init__(self):
         self.deviceTable = [] # initializes table used to store information of registered devices
@@ -129,7 +132,7 @@ class sharedDataLocks():
         self.conditionTable = Condition()
         self.conditionBox = Condition()    
 
-
+#Registers device onto the server using device's id and MAC address
 def REGISTER( deviceID, MAC, IP, port, sock ):
     print ("Device attempting to register to server, input values:")
     print ("DeviceID: ", deviceID, "MAC: ", MAC, "IP: ", IP, "Port: ", port)
@@ -137,7 +140,7 @@ def REGISTER( deviceID, MAC, IP, port, sock ):
         registerTime = time.time()- startTime # gets the current elapsed time of the program
         myList = [deviceID, MAC, IP, port, registerTime] # device info to be added to list of registered devices
         deviceTable.append(myList) # adds device to list of registered devices
-        mailBox.append([]) # adds a list in the mailbo to add mail to for the device that was registered
+        mailBox.append([]) # adds a list in the mailbox for device that registered
         print ("Device registered successfully", "\n")
         ACK(1,1, deviceID, 0, 0, sock) # ACK that device registered successfully
     else:
@@ -172,6 +175,7 @@ def REGISTER( deviceID, MAC, IP, port, sock ):
         ACK(1,1, deviceID, 0, 0, sock) # ACK that device registered successfully
         return
 
+#Deregisters device from server's stored registry
 def DEREGISTER( deviceID, MAC, sock ):
     print("Device attempting to deregister, device ID: ", deviceID, " MAC: ", MAC)
     TableSize = len(deviceTable)
@@ -203,10 +207,11 @@ def DEREGISTER( deviceID, MAC, sock ):
             print("Device was not registered")
             ACK(2,0, deviceID, 0, 0, sock)
             
+#Stores mail between clients in the proxy network
 def MSG( fromID, toID, message, time, sock ):
     print("Server attempting to send a message from: ", fromID, " to: ", toID)
     for index in range(len(deviceTable)): # loops through table of registered devices 
-        if(sorted(deviceTable[index][0]) == sorted(toID)):# checks to see if dest device ID is registered with server
+        if(sorted(deviceTable[index][0]) == sorted(toID)):# checks to see if device ID is registered with server
             mailBox[index].append([message, time]) # adds message to the mailbox for given dest device ID
             print("Message added by server to the mailbox successfully", "\n")
             ACK(3,0,fromID, 0, 0, sock) # ACK that message was added to mailbox successfully
@@ -214,14 +219,15 @@ def MSG( fromID, toID, message, time, sock ):
     print("Destination device ID was not found by server", "\n")
     NACK(3,fromID,0, sock) # NACK that device failed to add message to mailbox, meaning it could not find it in table of registered devices
 
+#Retrieves information stored in the server for client devices
 def QUERY(queryType, deviceID, sock):
     if queryType is 1: # query is to obtain info on another registered device
         print("Server attempting to query for info on device ID: ", deviceID)
         for index in range(len(deviceTable)): # loops through table of registered devices
             if(sorted(deviceTable[index][0]) == sorted(deviceID)): # looks to find index of mailbox/table of registered devices
                 deviceFound = (0, deviceTable[index][2], deviceTable[index][3]) # Info of device client queried for
-                deviceFound = str(deviceFound) # tuple to str
-                deviceFound = str.encode(deviceFound) # str to bytes
+                deviceFound = str(deviceFound)
+                deviceFound = str.encode(deviceFound)
                 print("Server successfully sent info on queried device", "\n")
                 sock.send(deviceFound) # send message to client
                 return
@@ -232,8 +238,8 @@ def QUERY(queryType, deviceID, sock):
         for index in range(len(deviceTable)): # loops through table of registered devices
             if(sorted(deviceTable[index][0]) == sorted(deviceID)): # looks to find device being queried for in table of registered devices
                 userMail = (0, mailBox[index]) # Info needed to deliver mail to client
-                userMail = str(userMail) # tuple to str
-                userMail = str.encode(userMail) # str to bytes
+                userMail = str(userMail)
+                userMail = str.encode(userMail)
                 print("Server sending mail to client")
                 sock.send(userMail) # send message to client
                 data = sock.recv(1024) # waits for confirmation that mail was sent correctly
@@ -243,6 +249,7 @@ def QUERY(queryType, deviceID, sock):
         print("Server couldn't find the device being queried", "\n")
         NACK(4, deviceID, 0, sock) # NACK that querying device wasn't found in table of registered devices
 
+#Gives client device access to Dropbox cloud
 def giveCloudToken(deviceID):
     myReply = str((accessToken))
     byteReply = str.encode(myReply)
@@ -250,47 +257,48 @@ def giveCloudToken(deviceID):
     print("Gave cloud access to: ",deviceID, "\n")    
     
 
+#Tells client that a operation was not successful
 def NACK(code, deviceID, MAC, sock):
     if code is 1: # code of 1 means register NACK
-        myReply = str((1, deviceID, MAC)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID, MAC))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 2: # code of 2 means deregister NACK
-        myReply = str((1, deviceID, MAC)) #Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((1, deviceID, MAC))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 3: # code of 3 means MSG NACK
-        myReply = str((1, deviceID)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 4: # code of 4 means query NACK
-        myReply = str((1, deviceID)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
         
-
+#Tells client that operation was successfull
 def ACK( code, flag, deviceID, time, count, sock):
     if code is 1 and flag is 1: # code of 1 means register ACK, flag of 1 means new device registered
-        myReply = str((0, flag, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((0, flag, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 1 and flag is 2: # code of 1 means register ACK, flag of 2 means device was already registered
         myReply = str((0, flag, deviceID, time, count)) #Tuple to String
         byteReply = str.encode(myReply) #String to Byte
         sock.send(byteReply) # send message to client
     if code is 2: # code of 2 means deregister ACK
-        myReply = str((0, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) #S tring to Byte
+        myReply = str((0, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 3: # code of 3 means MSG ACK
-        myReply = str((0, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((0, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
 
 #Cloud API setup
 appKey = 'liwnilzh5w024rc'
 appSecret = 'gt7842fcv8as0oo'
-myFlow = dropbox.client.DropboxOAuth2FlowNoRedirect(appKey, appSecret)
+myFlow = dropbox.oauth.DropboxOAuth2FlowNoRedirect(appKey, appSecret)
 authorizationURL = myFlow.start()
 print ('1. Go to: ' + authorizationURL)
 print ('2. Click "Allow" (you might have to log in first)')

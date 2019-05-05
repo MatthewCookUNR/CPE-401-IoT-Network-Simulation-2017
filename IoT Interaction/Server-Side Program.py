@@ -7,6 +7,7 @@ from threading import Thread
 from threading import Lock
 from threading import Condition
 
+#Handles operations for each client device
 class clientThread(Thread):
     def __init__(self, number, mySock, address):
         self.sock = mySock
@@ -17,8 +18,8 @@ class clientThread(Thread):
         OPEN = True # initial value is true, meaning more packets can be sent by the client to server
         while OPEN is True: # OPEN remains true until client quits his connection
             data = self.sock.recv(1024) # waits to recv data from client
-            data = bytes.decode(data) # bytes to str
-            data = literal_eval(data) # str to tuple
+            data = bytes.decode(data)
+            data = literal_eval(data)
             if data[0] is 1: # 0 is position of code, code of 1 means register message
                 locks.conditionTable.acquire()
                 print("Lock acquired by " + self.getName())
@@ -87,7 +88,8 @@ class clientThread(Thread):
                 sys.stdout = logFile2 # switches to printing to error log
                 print("malform packet detected from IP: ", self.addr[0])
                 sys.stdout = logFile1 # switches back to printing to activity log
-                
+
+#Handles the different mutex locks used by the proxy                
 class sharedDataLocks():
     def __init__(self):
         self.deviceTable = [] # initializes table used to store information of registered devices
@@ -97,7 +99,7 @@ class sharedDataLocks():
         self.conditionTable = Condition()
         self.conditionBox = Condition()    
 
-
+#Registers device onto the server using device's id and MAC address
 def REGISTER( deviceID, MAC, IP, port, sock ):
     print ("Device attempting to register to server, input values:")
     print ("DeviceID: ", deviceID, "MAC: ", MAC, "IP: ", IP, "Port: ", port)
@@ -139,7 +141,8 @@ def REGISTER( deviceID, MAC, IP, port, sock ):
         print ("Device registered successfully", "\n")
         ACK(1,1, deviceID, 0, 0, sock) # ACK that device registered successfully
         return
-
+    
+#Deregisters device from server's stored registry
 def DEREGISTER( deviceID, MAC, sock ):
     print("Device attempting to deregister, device ID: ", deviceID, " MAC: ", MAC)
     TableSize = len(deviceTable)
@@ -170,7 +173,8 @@ def DEREGISTER( deviceID, MAC, sock ):
         else:
             print("Device was not registered")
             ACK(2,0, deviceID, 0, 0, sock)
-            
+
+#Stores mail between clients in the proxy network      
 def MSG( fromID, toID, message, time, sock ):
     print("Server attempting to send a message from: ", fromID, " to: ", toID)
     for index in range(len(deviceTable)): # loops through table of registered devices 
@@ -182,14 +186,15 @@ def MSG( fromID, toID, message, time, sock ):
     print("Destination device ID was not found by server", "\n")
     NACK(3,fromID,0, sock) # NACK that device failed to add message to mailbox, meaning it could not find it in table of registered devices
 
+#Retrieves information stored in the server for client devices
 def QUERY(queryType, deviceID, sock):
     if queryType is 1: # query is to obtain info on another registered device
         print("Server attempting to query for info on device ID: ", deviceID)
         for index in range(len(deviceTable)): # loops through table of registered devices
             if(sorted(deviceTable[index][0]) == sorted(deviceID)): # looks to find index of mailbox/table of registered devices
                 deviceFound = (0, deviceTable[index][2], deviceTable[index][3]) # Info of device client queried for
-                deviceFound = str(deviceFound) # tuple to str
-                deviceFound = str.encode(deviceFound) # str to bytes
+                deviceFound = str(deviceFound)
+                deviceFound = str.encode(deviceFound)
                 print("Server successfully sent info on queried device", "\n")
                 sock.send(deviceFound) # send message to client
                 return
@@ -200,8 +205,8 @@ def QUERY(queryType, deviceID, sock):
         for index in range(len(deviceTable)): # loops through table of registered devices
             if(sorted(deviceTable[index][0]) == sorted(deviceID)): # looks to find device being queried for in table of registered devices
                 userMail = (0, mailBox[index]) # Info needed to deliver mail to client
-                userMail = str(userMail) # tuple to str
-                userMail = str.encode(userMail) # str to bytes
+                userMail = str(userMail)
+                userMail = str.encode(userMail)
                 print("Server sending mail to client")
                 sock.send(userMail) # send message to client
                 data = sock.recv(1024) # waits for confirmation that mail was sent correctly
@@ -211,48 +216,48 @@ def QUERY(queryType, deviceID, sock):
         print("Server couldn't find the device being queried", "\n")
         NACK(4, deviceID, 0, sock) # NACK that querying device wasn't found in table of registered devices
         
-
+#Tells client that a operation was not successful
 def NACK(code, deviceID, MAC, sock):
     if code is 1: # code of 1 means register NACK
-        myReply = str((1, deviceID, MAC)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID, MAC))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 2: # code of 2 means deregister NACK
-        myReply = str((1, deviceID, MAC)) #Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((1, deviceID, MAC))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 3: # code of 3 means MSG NACK
-        myReply = str((1, deviceID)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 4: # code of 4 means query NACK
-        myReply = str((1, deviceID)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((1, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
         
-
+#Tells client that operation was successfull
 def ACK( code, flag, deviceID, time, count, sock):
     if code is 1 and flag is 1: # code of 1 means register ACK, flag of 1 means new device registered
-        myReply = str((0, flag, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((0, flag, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 1 and flag is 2: # code of 1 means register ACK, flag of 2 means device was already registered
-        myReply = str((0, flag, deviceID, time, count)) #Tuple to String
-        byteReply = str.encode(myReply) #String to Byte
+        myReply = str((0, flag, deviceID, time, count))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 2: # code of 2 means deregister ACK
-        myReply = str((0, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) #S tring to Byte
+        myReply = str((0, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
     if code is 3: # code of 3 means MSG ACK
-        myReply = str((0, deviceID)) # Tuple to String
-        byteReply = str.encode(myReply) # String to Byte
+        myReply = str((0, deviceID))
+        byteReply = str.encode(myReply)
         sock.send(byteReply) # send message to client
 
 #Server Setup Code
 portNumber = 9999 # port number for server TCP socket
 tcpS = socket(AF_INET, SOCK_STREAM) # initializing new socket
-tcpS.bind(('192.168.0.16', portNumber)) # binding server's IP and desired port number to socket
+tcpS.bind(('192.168.56.1', portNumber)) # binding server's IP and desired port number to socket
 tcpS.listen(5) #5 max queued
 threadNumber = 0
 locks = sharedDataLocks()
@@ -269,7 +274,6 @@ ServerOn = True
 while ServerOn is True:
     sock, addr = tcpS.accept() # accepts a connection to the socket
     threadNumber = threadNumber+1
-    print('swag');
     threadList.append(clientThread(threadNumber, sock, addr))
     threadList[threadNumber-1].start()
 sys.stdout = oldStdout # change back to normal printing
